@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>마왕 공포지수</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    @font-face {
+      font-family: 'Digital7';
+      src: url('digital-7.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+    body { background: #1a0000; font-family: 'Pretendard', 'Noto Sans KR', Arial, sans-serif; }
+    .container { max-width: 540px; margin: 1px auto; background: #1a0000; border-radius: 16px; box-shadow: 0 2px 18px rgba(0,0,0,0.08); padding: 36px 28px 32px 28px; }
+    .section { margin-bottom: 42px; text-align: center; }
+    .label { font-size: 1.27em; color: #fff; margin-bottom: 3px; font-weight: 600; letter-spacing: -0.5px; text-align: left;}
+    .value {
+      font-size: 1.27em;
+      font-weight: bold;
+      color: #ff3737;
+      letter-spacing: 1px;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      font-family: 'Digital7', 'Pretendard', 'Noto Sans KR', Arial, sans-serif;
+      text-align:left;
+      display: inline-block; 
+        vertical-align: middle; 
+    }
+    .label-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 3px;
+      width: 100%;
+      text-align: left;
+      align-items: center;
+      gap: 10px;
+    }
+    .label-row2 {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 3px;
+      width: 100%;
+      text-align: left;
+      align-items: center;
+      gap: 10px;
+    }
+    .chart-btn {
+      margin-right: 0px;
+      background: #1a0000;
+      border: 1px solid #fff;
+      border-radius: 8px;
+      padding: 2px;
+      cursor:pointer;
+      color:#123;
+      align-self: flex-end; /* (옵션) 세로 정렬 보정 */
+      text-align: right;
+    }
+
+    .chart-box { display: none; background: #1a0000; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 12px 10px 8px 10px; margin-bottom: 0; margin-top: 6px; }
+    .chart-title { color: #fff; font-size: 1em; margin-bottom: 4px; margin-top: 6px; }
+    .sim-row { color: #fff; margin-top: 16px; margin-bottom: 8px; display: flex; justify-content: left; gap: 8px; align-items: left; font-size: 0.98em; color: #444; flex-wrap: wrap; }
+    .sim-row input { width: 50px; text-align: center; border: 1px solid #bbb; border-radius: 4px; padding: 4px 0; font-size: 1em; }
+    .sim-row button { background: #1a0000; color: #fff; border: none;  border: 0.1px solid #fff; border-radius: 5px; padding: 6px 16px; font-size: 1em; cursor: pointer; transition: background 0.15s; }
+    .sim-row button:hover { background: #1a0000; }
+    .score-max {
+      font-size: 1.3em;
+      font-weight: bold;
+      color: #ff3737;
+    }
+    .score-maxtime {
+      font-size: 0.5em;
+      color: #888;
+      margin-left: 0.18em;
+    }
+    .score-avg {
+      font-size: 1.0em;
+      color: #ff3737;
+      font-weight: 1;
+    }
+
+  </style>
+</head>
+<body>
+  <div style="width:100%;text-align:center;margin-top:1px;margin-bottom:1px;">
+    <div style="width:100%;text-align:center;margin-top:32px;margin-bottom:16px;">
+      <span id="editable-title" style="font-size:3em;font-weight:700;letter-spacing:2px;color:#fff; cursor:pointer;">
+        마왕 공포지수
+      </span>
+    </div>
+  </div>
+  <div class="container">
+  <div class="label-row2">
+    <span id="scoreboardname">
+      <img src="score.png" alt="총점:" style="height: 3.2em; margin-right: 10px;">
+    </span>
+    <span class="value" style="font-size: 2.5em;" id="scoreboard">--</span>
+  </div>
+  <div id="score-summary" style="display:none;">
+  </div>
+      <!-- 심박수 -->
+    <div class="section">
+      <div class="label-row">
+        <span>
+          <img src="heart.png" alt="심박수" style="height: 3.2em; vertical-align: middle; margin-right: 10px;">
+          <span class="value" id="current-hr" style="vertical-align: middle;">--</span>
+        </span>
+        <div id="stat-summary" style="margin-top:18px; text-align:left; color:#345; font-size:1.08em;"></div>
+        <button class="chart-btn" onclick="toggleChart('hrChart')">
+          <img src="chart_icon.png" alt="차트" style="height:2.3em; vertical-align:middle;">
+        </button>
+      </div>
+      <div class="chart-box" id="hrChart-box">
+        <canvas id="hrChart" height="100"></canvas>
+      </div>
+    </div>
+    <!-- 운동량 -->
+    <div class="section">
+      <div class="label-row">
+        <span>
+          <img src="activity.png" alt="운동량" style="height: 3.2em; vertical-align: middle; margin-right: 10px;">
+          <span class="value" id="current-activity" style="vertical-align: middle; color:#26a69a;">--</span>
+        </span>
+        <button class="chart-btn" onclick="toggleChart('activityChart')">
+          <img src="chart_icon.png" alt="차트" style="height:2.3em; vertical-align:middle;">
+        </button>
+      </div>
+      <div class="chart-box" id="activityChart-box">
+        <canvas id="activityChart" height="100"></canvas>
+      </div>
+    </div>
+    <!-- 스트레스지수 -->
+    <div class="section">
+      <div class="label-row">
+        <span>
+          <img src="stress.png" alt="스트레스지수" style="height: 3.2em; vertical-align: middle; margin-right: 10px;">
+          <span class="value" id="current-stress" style="vertical-align: middle; color:#4285F4;">--</span>
+        </span>
+        <button class="chart-btn" onclick="toggleChart('stressChart')">
+          <img src="chart_icon.png" alt="차트" style="height:2.3em; vertical-align:middle;">
+        </button>
+      </div>
+      <div class="chart-box" id="stressChart-box">
+        <canvas id="stressChart" height="100"></canvas>
+      </div>
+    </div>
+    <!-- 긴장도 -->
+    <div class="section">
+      <div class="label-row">
+        <span>
+          <img src="tension.png" alt="긴장도" style="height: 3.2em; vertical-align: middle; margin-right: 10px;">
+          <span class="value" id="current-tension" style="vertical-align: middle; color:#f9a825;">--</span>
+        </span>
+        <button class="chart-btn" onclick="toggleChart('tensionChart')">
+          <img src="chart_icon.png" alt="차트" style="height:2.3em; vertical-align:middle;">
+        </button>
+      </div>
+      <div class="chart-box" id="tensionChart-box">
+        <canvas id="tensionChart" height="100"></canvas>
+      </div>
+    </div>
+      
+      <div class="realtime-metrics" style="margin-top:28px; text-align:left;">
+        <div
+          class="metrics-title"
+          id="metrics-title"
+          style="font-weight:600; margin-bottom:10px; font-size:1.08em; color:#fff; cursor:pointer;"
+        >실시간 센서 데이터
+        </div>
+        <div id="extra-metrics" style="display:none; color:#fff;"></div>
+      </div>
+
+      <div class="sim-config-box" id="sim-config-box" style="display:none;" >
+        <div class="sim-row" style="color: #fff;">
+          <label>심박수: </label>
+          <input type="number" id="hr-sim-from" min="0" max="300" value="0">
+          <label>초 뒤부터</label>
+          <input type="number" id="hr-sim-to" min="1" max="300" value="0">
+          <label>초 뒤까지</label>
+          <input type="number" id="hr-sim-value" value="0">
+          <label>증가</label>
+        </div>
+        <div class="sim-row" style="color: #fff;">
+          <label>운동량: </label>
+          <input type="number" id="act-sim-from" min="0" max="300" value="0">
+          <label>초 뒤부터</label>
+          <input type="number" id="act-sim-to" min="1" max="300" value="0">
+          <label>초 뒤까지</label>
+          <input type="number" id="act-sim-value" value="0">
+          <label>증가</label>
+        </div>
+        <div class="sim-row" style="color: #fff;">
+          <label>스트레스지수: </label>
+          <input type="number" id="stress-sim-from" min="0" max="300" value="0">
+          <label>초 뒤부터</label>
+          <input type="number" id="stress-sim-to" min="1" max="300" value="0">
+          <label>초 뒤까지</label>
+          <input type="number" id="stress-sim-value" value="0">
+          <label>증가</label>
+        </div>
+        <div class="sim-row" style="color: #fff;">
+          <label>긴장도: </label>
+          <input type="number" id="tension-sim-from" min="0" max="300" value="0">
+          <label>초 뒤부터</label>
+          <input type="number" id="tension-sim-to" min="1" max="300" value="0">
+          <label>초 뒤까지</label>
+          <input type="number" id="tension-sim-value" value="0">
+          <label>증가</label>
+        </div>
+          <div class="sim-row">
+            <button id="sim-start">start</button>
+            <button id="sim-reset">reset</button>
+          </div>
+      </div>
+
+      <div id="stress-plus-sim-box" style="display:none;">
+        <div class="sim-row" style="color: #fff;">
+          <label>심박수: </label>
+          <input type="number" id="plus-hr" value="20">
+          <label>증가</label>
+        </div>
+        <div class="sim-row" style="color: #fff;">
+          <label>운동량: </label>
+          <input type="number" id="plus-act" value="0">
+          <label>증가</label>
+        </div>
+        <div class="sim-row" style="color: #fff;">
+          <label>스트레스지수: </label>
+          <input type="number" id="plus-str" value="0">
+          <label>증가</label>
+        </div>
+        <div class="sim-row" style="color: #fff;">
+          <label>긴장도: </label>
+          <input type="number" id="plus-ten" value="15">
+          <label>증가</label>
+        </div>
+        <div class="sim-row">
+          <button id="plus-start-btn">start</button>
+        </div>
+      </div>
+
+  </div>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAeRgaoca5MbR760fEowwtVI9i8W3izufU",
+      authDomain: "wear-b9cbc.firebaseapp.com",
+      databaseURL: "https://wear-b9cbc-default-rtdb.firebaseio.com",
+      projectId: "wear-b9cbc",
+      storageBucket: "wear-b9cbc.appspot.com",
+      messagingSenderId: "250913128329",
+      appId: "1:250913128329:web:43e97063feedc56a712b58",
+      measurementId: "G-0YK0FRGFY7"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let lastStartTS = null, lastStopTS = null;
+    let currentState = 'initial'; // 'initial', 'measuring', 'finished'
+    // 신호 경로 실시간 감시
+    const hiddenSignalRef = db.ref('hidden_signal');
+    const hiddenSignalRef2 = db.ref('hidden_signal2');
+    let lastSignal = null;
+    let lastSignal2 = null;
+
+    hiddenSignalRef.on('value', (snapshot) => {
+      const newValue = snapshot.val();
+      if (newValue && newValue !== lastSignal) {
+        lastSignal = newValue;
+        // sim-start 버튼을 자동으로 클릭
+        document.getElementById('sim-start')?.click();
+      }
+    });
+    
+    hiddenSignalRef2.on('value', (snapshot) => {
+      const newValue = snapshot.val();
+      if (newValue && newValue !== lastSignal2) {
+        lastSignal2 = newValue;
+        // sim-start 버튼을 자동으로 클릭
+        document.getElementById('plus-start-btn')?.click();
+      }
+    });
+
+    function formatTime(ts) {
+      const date = new Date(Number(ts));
+      return date.toLocaleTimeString('ko-KR', { hour12: false });
+    }
+
+    // 개별 지표별로 set
+    function setSimValue(key, value) {
+      db.ref('plusvalue_sim/' + key).set(value);
+    }
+    function setPersistValue(key, value) {
+      db.ref('plusvalue_persist/' + key).set(value);
+    }
+
+    // 두 값 합산해서 최종 plusvalue에 set
+    function updatePlusvalues() {
+      Promise.all([
+        db.ref('plusvalue_sim').once('value'),
+        db.ref('plusvalue_persist').once('value')
+      ]).then(([simSnap, persistSnap]) => {
+        const sim = simSnap.val() || {};
+        const persist = persistSnap.val() || {};
+        db.ref('plusvalue/심박수').set((sim["심박수"]||0)+(persist["심박수"]||0));
+        db.ref('plusvalue/운동량').set((sim["운동량"]||0)+(persist["운동량"]||0));
+        db.ref('plusvalue/스트레스지수').set((sim["스트레스지수"]||0)+(persist["스트레스지수"]||0));
+        db.ref('plusvalue/긴장도').set((sim["긴장도"]||0)+(persist["긴장도"]||0));
+      });
+    }
+    setInterval(updatePlusvalues, 500);
+
+
+    function resetAllChartsAndStats() {
+      // 1. raw 데이터 배열 리셋
+      rawHR = [];
+      rawACT = [];
+      rawSTR = [];
+      rawTEN = [];
+      rawSCORE = [];
+      rawLabels = [];
+      sortedKeys = [];
+
+      // 2. 차트 데이터/라벨 비우기
+      hrChart.data.labels = [];
+      hrChart.data.datasets[0].data = [];
+      activityChart.data.labels = [];
+      activityChart.data.datasets[0].data = [];
+      stressChart.data.labels = [];
+      stressChart.data.datasets[0].data = [];
+      tensionChart.data.labels = [];
+      tensionChart.data.datasets[0].data = [];
+      // 3. 차트 업데이트
+      hrChart.update();
+      activityChart.update();
+      stressChart.update();
+      tensionChart.update();
+
+      // 4. 현재 값 표시 "--" 등으로 초기화
+      document.getElementById("current-hr").textContent = "--";
+      document.getElementById("current-activity").textContent = "--";
+      document.getElementById("current-stress").textContent = "--";
+      document.getElementById("current-tension").textContent = "--";
+      document.getElementById("scoreboard").textContent = "--";
+      // 5. 추가 센서 값 등도 초기화 필요시 여기에
+      document.getElementById("extra-metrics").innerHTML = '--'
+
+      // 6. 시뮬레이션 상태(필요하면)
+      if (typeof simState !== "undefined") {
+        simState.hr.active = false;
+        simState.act.active = false;
+        simState.stress.active = false;
+        simState.tension.active = false;
+        // 그리고 시뮬 입력창도 값 초기화 원하면 여기에
+      }
+    }
+    function showSummaryStats() {
+    if (rawHR && rawHR.length > 0) {
+      const maxHR = Math.max(...rawHR.filter(v => v !== null && !isNaN(v)));
+      const avgHR = Math.round(rawHR.filter(v => v !== null && !isNaN(v)).reduce((a, b) => a + b, 0) / rawHR.length);
+    }
+}
+
+
+    function toggleChart(chartId) {
+      const box = document.getElementById(chartId + "-box");
+      box.style.display = (box.style.display === "none" || !box.style.display) ? "block" : "none";
+    }
+    // 차트 4개 생성
+    const hrChart = new Chart(document.getElementById('hrChart').getContext('2d'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: '심박수', data: [], borderColor: 'red', backgroundColor: 'rgba(255,80,80,0.10)', fill: true, tension: 0.4, pointRadius: 2.5 }] },
+      options: { animation: false, responsive: true, plugins:{legend:{display:false}}, scales: { x: { title: { display: false }, ticks: {
+        autoSkip: true,
+        maxTicksLimit: 5,
+        color: '#fff'
+      } }, y: { min: 30, max: 180, title: { display: false }, ticks: { color: '#fff'} } } }
+    });
+    const activityChart = new Chart(document.getElementById('activityChart').getContext('2d'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: '운동량', data: [], borderColor: '#26a69a', backgroundColor: 'rgba(60,210,180,0.09)', fill: true, tension: 0.4, pointRadius: 2.5 }] },
+      options: { animation: false, responsive: true, plugins:{legend:{display:false}}, scales: { x: { title: { display: false }, ticks: {
+        autoSkip: true,
+        maxTicksLimit: 3,
+        color: '#fff'
+      } }, y: { min: 0, max: 100, title: { display: false }, ticks: { color: '#fff'} } } }
+    });
+    const stressChart = new Chart(document.getElementById('stressChart').getContext('2d'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: '스트레스지수', data: [], borderColor: '#4285F4', backgroundColor: 'rgba(66,133,244,0.09)', fill: true, tension: 0.4, pointRadius: 2.5 }] },
+      options: { animation: false, responsive: true, plugins:{legend:{display:false}}, scales: { x: { title: { display: false }, ticks: {
+        autoSkip: true,
+        maxTicksLimit: 3,
+        color: '#fff'
+      } }, y: { min: 0, max: 100, title: { display: false }, ticks: { color: '#fff'} } } }
+    });
+    const tensionChart = new Chart(document.getElementById('tensionChart').getContext('2d'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: '긴장도', data: [], borderColor: '#f9a825', backgroundColor: 'rgba(249,168,37,0.08)', fill: true, tension: 0.4, pointRadius: 2.5 }] },
+      options: { animation: false, responsive: true, plugins:{legend:{display:false}}, scales: { x: { title: { display: false }, ticks: {
+        autoSkip: true,
+        maxTicksLimit: 3,
+        color: '#fff'
+      } }, y: { min: 0, max: 100, title: { display: false }, ticks: { color: '#fff'} } } }
+    });
+
+    let sortedKeys = [], rawHR=[], rawACT=[], rawSTR=[], rawTEN=[], rawSCORE = [], rawLabels=[];
+    // "start" 버튼에 모두 적용
+    document.getElementById('sim-start').onclick = function() {
+      const hrsimFrom = Number(document.getElementById('hr-sim-from').value) || 0;
+      const hrsimTo   = Number(document.getElementById('hr-sim-to').value)   || 0;
+      const hrsimVal  = Number(document.getElementById('hr-sim-value').value) || 0;
+      const actsimFrom= Number(document.getElementById('act-sim-from').value) || 0;
+      const actsimTo  = Number(document.getElementById('act-sim-to').value)   || 0;
+      const actsimVal = Number(document.getElementById('act-sim-value').value) || 0;
+      const stsimFrom = Number(document.getElementById('stress-sim-from').value) || 0;
+      const stsimTo   = Number(document.getElementById('stress-sim-to').value)   || 0;
+      const stsimVal  = Number(document.getElementById('stress-sim-value').value) || 0;
+      const tssimFrom = Number(document.getElementById('tension-sim-from').value) || 0;
+      const tssimTo   = Number(document.getElementById('tension-sim-to').value)   || 0;
+      const tssimVal  = Number(document.getElementById('tension-sim-value').value) || 0;
+
+      // 심박수
+      setTimeout(() => setSimValue('심박수', hrsimVal), hrsimFrom * 1000);
+      setTimeout(() => setSimValue('심박수', 0), hrsimTo * 1000);
+      // 운동량
+      setTimeout(() => setSimValue('운동량', actsimVal), actsimFrom * 1000);
+      setTimeout(() => setSimValue('운동량', 0), actsimTo * 1000);
+      // 스트레스지수
+      setTimeout(() => setSimValue('스트레스지수', stsimVal), stsimFrom * 1000);
+      setTimeout(() => setSimValue('스트레스지수', 0), stsimTo * 1000);
+      // 긴장도
+      setTimeout(() => setSimValue('긴장도', tssimVal), tssimFrom * 1000);
+      setTimeout(() => setSimValue('긴장도', 0), tssimTo * 1000);
+    };
+    document.getElementById('sim-reset').onclick = function() {
+      setSimValue('심박수', 0);
+      setSimValue('운동량', 0);
+      setSimValue('스트레스지수', 0);
+      setSimValue('긴장도', 0);
+    };
+
+    const titleSpan = document.getElementById('editable-title');
+    const titleRef = db.ref('dashboard_title');
+
+
+    // 1. 처음/변경시 DB에서 제목 읽어옴
+    titleRef.on('value', snapshot => {
+      const newTitle = snapshot.val() || "마왕 공포지수";
+      titleSpan.textContent = newTitle;
+    });
+
+    // 2. 클릭 시 input으로 변환
+    titleSpan.onclick = function () {
+      if (titleSpan.querySelector('input')) return;
+      const currentText = titleSpan.textContent;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentText;
+      // ... 스타일 동일 ...
+      input.style.fontSize = '1em';
+      input.style.fontWeight = '700';
+      input.style.letterSpacing = '2px';
+      input.style.color = '#222';
+      input.style.width = '80%';
+      input.style.textAlign = 'center';
+      input.style.border = '1px solid #bbb';
+      input.style.borderRadius = '6px';
+      input.style.outline = 'none';
+
+      titleSpan.textContent = '';
+      titleSpan.appendChild(input);
+      input.focus();
+      input.select();
+
+      function saveTitle() {
+        const newValue = input.value.trim() || "마왕 공포지수";
+        titleRef.set(newValue); // << 여기만 파이어베이스로 저장
+        // 별도 textContent 지정 필요 없음
+      }
+      input.onkeydown = function(e) {
+        if (e.key === "Enter") saveTitle();
+      };
+      input.onblur = saveTitle;
+    };
+
+
+    document.getElementById('current-tension').onclick = function() {
+      const box = document.getElementById('sim-config-box');
+      box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+    };
+    document.getElementById('metrics-title').onclick = function() {
+      const detail = document.getElementById('extra-metrics');
+      detail.style.display = (detail.style.display === 'none' || !detail.style.display) ? 'block' : 'none';
+    };
+    function updateAllCharts() {
+      // 1. 원본 배열을 복사(시뮬레이션용)  
+      let hrArr = [...rawHR];
+      let actArr = [...rawACT];
+      let strArr = [...rawSTR];
+      let tenArr = [...rawTEN];
+
+      hrChart.data.labels = activityChart.data.labels = stressChart.data.labels = tensionChart.data.labels = rawLabels;
+      hrChart.data.datasets[0].data = hrArr;
+      activityChart.data.datasets[0].data = actArr;
+      stressChart.data.datasets[0].data = strArr;
+      tensionChart.data.datasets[0].data = tenArr;
+
+      hrChart.update();
+      activityChart.update();
+      stressChart.update();
+      tensionChart.update();
+
+      document.getElementById("scoreboardname").innerHTML =
+        '<img src="score.png" alt="총점:" style="height: 3.2em; margin-right: 10px;">';
+
+      const lastIdx = hrArr.length - 1;
+      document.getElementById("current-hr").textContent =
+        hrArr[lastIdx] !== null && !isNaN(hrArr[lastIdx]) ? Math.round(hrArr[lastIdx]) + " bpm" : "--";
+
+      const lastActivity = actArr[lastIdx];
+      document.getElementById("current-activity").textContent =
+        lastActivity === null || lastActivity === undefined || isNaN(lastActivity) ? "0" : Math.round(lastActivity);
+
+      const lastStress = strArr[lastIdx];
+      document.getElementById("current-stress").textContent =
+        lastStress === null || lastStress === undefined || isNaN(lastStress) ? "0" : Math.round(lastStress);
+
+      const lastTension = tenArr[lastIdx];
+      document.getElementById("current-tension").textContent =
+        lastTension === null || lastTension === undefined || isNaN(lastTension) ? "0" : Math.round(lastTension);
+
+      const lastScore = rawSCORE[lastIdx];
+      document.getElementById("scoreboard").textContent =
+        (typeof lastScore === "number" && !isNaN(lastScore)) ? Math.round(lastScore) : "--";
+
+      const normHR = Math.max(0, Math.min(100, ((hrArr[lastIdx] - 30) / 150) * 100));
+
+    }
+
+    db.ref('watch_sensor_data').on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        sortedKeys = Object.keys(data).sort((a, b) => a - b);
+        rawLabels = sortedKeys.map(ts => formatTime(ts));
+        rawHR = [], rawACT = [], rawSTR = [], rawTEN = [], rawSCORE = [];
+        sortedKeys.forEach(ts => {
+          const item = data[ts];
+          rawHR.push(parseFloat(item["심박수"]) || null);
+          rawACT.push(parseFloat(item["운동량"]) || null);
+          rawSTR.push(parseFloat(item["스트레스지수"]) || null);
+          rawTEN.push(parseFloat(item["긴장도"]) || null);
+          rawSCORE.push(parseFloat(item["총점"]) || null);
+        });
+        if (currentState === 'measuring') {
+          updateAllCharts(); // 실시간 점수 표시
+        }
+        if (sortedKeys.length > 0) {
+          const lastKey = sortedKeys[sortedKeys.length - 1];
+          const lastItem = data[lastKey] || {};
+          document.getElementById("extra-metrics").innerHTML = `
+            <div><b>가속도계:</b> ${lastItem["가속도계"] || "--"}</div>
+            <div><b>자이로스코프:</b> ${lastItem["자이로스코프"] || "--"}</div>
+            <div><b>자기장:</b> ${lastItem["자기장"] || "--"}</div>
+            <div><b>걸음 감지:</b> ${lastItem["걸음 감지"] || "--"}</div>
+            <div><b>걸음 수:</b> ${lastItem["걸음 수"] || "--"}</div>
+            <div><b>기압:</b> ${lastItem["기압"] || "--"}</div>
+            <div><b>조도:</b> ${lastItem["조도"] || "--"}</div>
+          `;
+        }
+      }
+    });
+
+    db.ref('watch_signal/start').on('value', snap => {
+      lastStartTS = snap.val() || 0;
+      updateUIByState();
+    }); 
+
+    db.ref('watch_signal/stop').on('value', snap => {
+      lastStopTS = snap.val() || 0;
+      updateUIByState();
+    });
+    function updateUIByState() {
+      console.log(lastStartTS, lastStopTS)
+      // 둘 다 0이면 초기상태
+      if (!lastStartTS && !lastStopTS) {
+        // 초기상태
+        console.log("초기상태")
+        currentState = 'initial';
+        // ... 등등
+        return;
+      }
+      else if (lastStartTS > lastStopTS) {
+        // 측정중 상태
+        console.log("측정중..")
+        currentState = 'measuring';
+        // ... 등등
+      } else if (lastStopTS >= lastStartTS && lastStopTS > 0) {
+        // 종료상태
+        console.log("종료상태")
+        currentState = 'finished';
+        // 종료 시점에 데이터 전체 읽기
+        db.ref('watch_sensor_data').once('value').then(snapshot => {
+          const data = snapshot.val();
+          if (!data) return;
+
+          const sortedKeys = Object.keys(data).sort((a, b) => a - b);
+
+          // 각 항목별로 데이터 뽑기
+          function calcStats(key) {
+            let maxVal = null, maxTS = null, sum = 0, count = 0;
+            sortedKeys.forEach(ts => {
+              const item = data[ts];
+              const v = parseFloat(item[key]);
+              if (!isNaN(v)) {
+                sum += v;
+                count++;
+                if (maxVal === null || v > maxVal) {
+                  maxVal = v;
+                  maxTS = ts;
+                }
+              }
+            });
+            const avg = count > 0 ? Math.round(sum / count) : "--";
+            return {
+              avg,
+              max: maxVal !== null ? Math.round(maxVal) : "--",
+              maxTS
+            };
+          }
+
+          function tsToTimeStr(ts) {
+            if (!ts) return "--";
+            const date = new Date(Number(ts));
+            const h = String(date.getHours()).padStart(2, "0");
+            const m = String(date.getMinutes()).padStart(2, "0");
+            const s = String(date.getSeconds()).padStart(2, "0");
+            return `${h}:${m}:${s}`;
+          }
+
+          // 각 지표별 통계 구하기
+          const scoreStats   = calcStats("총점");
+          const hrStats      = calcStats("심박수");
+          const actStats     = calcStats("운동량");
+          const stressStats  = calcStats("스트레스지수");
+          const tensionStats = calcStats("긴장도");
+
+          // 표시 (html) — innerHTML로 줄바꿈도 표현
+          document.getElementById("scoreboardname").innerHTML =
+            '<img src="skull.png" alt="최고" style="height:3em;vertical-align:middle; margin-bottom: 0.5em; margin-left: 0.3em;">' +
+            '<br>' +
+            '<img src="blood.png" alt="평균" style="height:3em;vertical-align:middle; margin-left: 0.25em;">';
+          document.getElementById("scoreboard").innerHTML =
+            `<span class="score-max">${scoreStats.max}</span>
+            <span class="score-maxtime">(${tsToTimeStr(scoreStats.maxTS)})</span><br>
+            <span class="score-avg">${scoreStats.avg}</span>`;
+
+          document.getElementById("current-hr").innerHTML =
+            `<span style="line-height: 1.5;">최고: ${hrStats.max} (${tsToTimeStr(hrStats.maxTS)})<br>평균: ${hrStats.avg}</span>`;
+
+          document.getElementById("current-activity").innerHTML =
+            `<span style="line-height: 1.5;">최고: ${actStats.max} (${tsToTimeStr(actStats.maxTS)})<br>평균: ${actStats.avg}`;
+
+          document.getElementById("current-stress").innerHTML =
+            `<span style="line-height: 1.5;">최고: ${stressStats.max} (${tsToTimeStr(stressStats.maxTS)})<br>평균: ${stressStats.avg}`;
+
+          document.getElementById("current-tension").innerHTML =
+            `<span style="line-height: 1.5;">최고: ${tensionStats.max} (${tsToTimeStr(tensionStats.maxTS)})<br>평균: ${tensionStats.avg}`;
+        });
+      }
+}
+
+// --- 지속증가 로직 (start/reset)
+let stressSimActive = false;
+let stressSimInterval = null;
+document.getElementById("plus-start-btn").onclick = function() {
+  const hr = Number(document.getElementById("plus-hr").value)||0;
+  const act = Number(document.getElementById("plus-act").value)||0;
+  const str = Number(document.getElementById("plus-str").value)||0;
+  const ten = Number(document.getElementById("plus-ten").value)||0;
+  if (!stressSimActive) {
+    setPersistValue('심박수', hr);
+    setPersistValue('운동량', act);
+    setPersistValue('스트레스지수', str);
+    setPersistValue('긴장도', ten);
+    stressSimInterval = setInterval(() => {
+      setPersistValue('심박수', hr);
+      setPersistValue('운동량', act);
+      setPersistValue('스트레스지수', str);
+      setPersistValue('긴장도', ten);
+    }, 2000);
+    stressSimActive = true;
+    document.getElementById("plus-start-btn").textContent = "reset";
+  } else {
+    clearInterval(stressSimInterval);
+    setPersistValue('심박수', 0);
+    setPersistValue('운동량', 0);
+    setPersistValue('스트레스지수', 0);
+    setPersistValue('긴장도', 0);
+    stressSimActive = false;
+    document.getElementById("plus-start-btn").textContent = "start";
+    document.getElementById("plus-hr").value = 0;
+    document.getElementById("plus-act").value = 0;
+    document.getElementById("plus-str").value = 0;
+    document.getElementById("plus-ten").value = 0;
+  }
+};
+let stressPlusSimVisible = false;
+document.getElementById("current-stress").onclick = function() {
+  const box = document.getElementById("stress-plus-sim-box");
+  stressPlusSimVisible = !stressPlusSimVisible;
+  box.style.display = stressPlusSimVisible ? "block" : "none";
+};
+</script>
+</script>
+</body>
+</html>
